@@ -1,0 +1,92 @@
+/* buscador.css */
+
+/* Quitar márgenes y padding generales */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: "Lato", sans-serif;
+  }
+  
+  /* Ajustar contenedor para que ocupe todo el ancho */
+  .container-fluid {
+    margin: 0;
+    padding: 0.25rem;
+  }
+  
+  /* Tabla más compacta */
+  .mi-tabla, .mi-tabla th, .mi-tabla td {
+    padding: 0.3rem !important;
+    font-size: 0.75rem;
+    line-height: 1.1;
+  }
+  
+
+
+/* Subtabla de índice documental */
+/* Subtabla de índice documental */
+.mi-tabla2 td {
+  padding: 0.2rem !important;
+  font-size: 0.7rem;
+}
+
+.mi-tabla2 tr {
+  background-color: #b2cbdead !important;
+}
+
+/* Asegurar que la tabla se ajuste al contenido y se centre */
+.mi-tabla2 {
+  margin: 0 auto; /* Centra la tabla */
+  width: auto;    /* Permite que el ancho se ajuste automáticamente */
+  table-layout: auto;
+}
+
+/* La celda de descripción se adapta al contenido */
+.mi-tabla2 td.descripcion {
+  white-space: nowrap;
+  width: auto;
+}
+
+/* Opcional: para permitir que la descripción se ajuste a varias líneas si es necesario */
+.mi-tabla2 td.descripcion i {
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+}
+
+  
+  
+  
+  /* Botones pequeños */
+  .btn-sm {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+  
+  /* Botón acordeón */
+  .accordion {
+    display: inline-block;
+    background-color: #6c757d;
+    border: none;
+    color: #fff;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  
+  /* Ajuste de la card para que sea compacta */
+  .card-header, .card-body {
+    padding: 0.5rem;
+  }
+  
+  /* Ajuste del header superior */
+  header.bg-light.py-1 {
+    padding: 0.25rem 0;
+  }
+  
+  header .form-inline input {
+    margin-left: 0.5rem;
+    max-width: 150px;
+  }
+  

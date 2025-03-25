@@ -1,11 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
-import os, secrets
+from flask import Flask, request, abort, send_file, session, redirect, url_for, flash
+import os, secrets, io, textwrap
 import mysql.connector
 import time, urllib.parse, json
-
-from datetime import timedelta
+from collections import Counter
+from datetime import timedelta, date, datetime
 from flask import jsonify, request
 import mariadb
+from fpdf import FPDF
+
+
 
 
 app = Flask(__name__)
@@ -244,7 +248,6 @@ def guardar_datos():
         return redirect(url_for('agregarcarpeta'))
 
 
-#ruta de buscador y consultas
 @app.route('/buscador', methods=['GET', 'POST'])
 def buscador():
     # Verificar autenticación
@@ -253,6 +256,10 @@ def buscador():
     
     carpetas = []
     search_query = ""
+    
+    # Consulta principal: obtener las carpetas
+    conn = None
+    cursor = None
     try:
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
@@ -267,12 +274,15 @@ def buscador():
         if conn is not None:
             conn.close()
     
-    # Para cada carpeta, se consulta su índice documental
+    # Para cada carpeta, consultar su índice documental
     for carpeta in carpetas:
+        conn2 = None
+        cursor2 = None
         try:
             conn2 = mysql.connector.connect(**db_config)
             cursor2 = conn2.cursor(dictionary=True)
-            query2 = "SELECT * FROM IndiceDocumental WHERE Caja = %s AND Carpeta = %s"
+            # Ajuste en el nombre de la tabla: 'indicedocumental'
+            query2 = "SELECT * FROM indicedocumental WHERE Caja = %s AND Carpeta = %s"
             cursor2.execute(query2, (carpeta['Caja'], carpeta['Car2']))
             carpeta['indice'] = cursor2.fetchall()
         except Exception as e:
@@ -285,12 +295,12 @@ def buscador():
                 conn2.close()
     
     if request.method == 'POST':
-        # Si se envía un término de búsqueda, puedes filtrar la lista (opcional)
         search_query = request.form.get('search_query', '').strip()
-        # Ejemplo de filtrado en Python (puedes ajustarlo según lo que necesites)
         carpetas = [c for c in carpetas if search_query.lower() in c.get('Titulo', '').lower()]
     
     return render_template('buscador.html', carpetas=carpetas, query=search_query)
+
+
 
 
 @app.route('/indice', methods=['GET', 'POST'])
@@ -664,6 +674,320 @@ def actualizar_final():
         return jsonify(status="error", message=str(e)), 500
 
 
+@app.route('/pdf/rotulo-carpeta', methods=['POST'])
+def rotulo_carpeta():
+    # Verificar que se envió el parámetro 'consulta'
+    if 'consulta' not in request.form:
+        abort(400, description="Falta el parámetro 'consulta'")
+    try:
+        idpost = int(request.form['consulta'])
+    except ValueError:
+        abort(400, description="El parámetro 'consulta' debe ser un entero.")
+
+    # Consulta a la base de datos para obtener los datos de la carpeta
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM Carpetas WHERE id = %s"
+        cursor.execute(query, (idpost,))
+        fila = cursor.fetchone()
+    except Exception as e:
+        app.logger.error("Error de base de datos: %s", e)
+        abort(500, description="Error en la base de datos.")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    if not fila:
+        abort(404, description="Carpeta no encontrada.")
+
+    # Extraer campos (ajusta los nombres según tu base de datos)
+    Caja = fila.get('Caja')
+    Car2 = fila.get('Car2')
+    Serie = fila.get('Serie') or ""
+    Subs = fila.get('Subs') or ""
+    Titulo = fila.get('Titulo') or ""
+    FInicial = fila.get('FInicial') or ""
+    FFinal = fila.get('FFinal') or ""
+    Folios = fila.get('Folios') or ""
+
+    # Definir la clase PDF heredada de FPDF (para agregar el header con imagen)
+    class PDF(FPDF):
+        def header(self):
+            # Agregar logo (ajusta la ruta según tu estructura)
+            try:
+                self.image("static/img/flayer seminario mujeres.jpeg", 0, 0, -50)
+            except Exception as e:
+                app.logger.error("Error al cargar la imagen del header: %s", e)
+
+    # Crear el objeto PDF (formato: Horizontal, unidades en mm, tamaño personalizado)
+    pdf = PDF('L', 'mm', (216, 330))
+    pdf.set_title(f"{Car2} Carpeta (Caja {Caja})")
+    pdf.add_page()
+    pdf.alias_nb_pages()
+    # Fondo: imagen de fondo (ajusta la ruta y dimensiones según corresponda)
+    try:
+        pdf.image("static/img/Carpeta AYC-GDO-FR-19.jpg", 0, 0, 335)
+    except Exception as e:
+        app.logger.error("Error al cargar la imagen de fondo: %s", e)
+    pdf.set_font('Arial', '', 9)
+
+    # Serie
+    pdf.set_xy(42.3, 91.5)
+    pdf.multi_cell(87, 6.1, Serie, 0)
+    # Subs
+    pdf.set_xy(42.3, 99.1)
+    pdf.multi_cell(87, 6.8, Subs, 0)
+    # Título Carpeta
+    pdf.set_xy(42.3, 107.3)
+    pdf.multi_cell(87, 6.2, Titulo, 0)
+    # Número de Carpeta (Car2)
+    pdf.set_xy(134.1, 109.9)
+    pdf.multi_cell(24.1, 10, str(Car2), 0, 'C')
+    # Título Expediente (vacío)
+    pdf.set_xy(42.3, 121.4)
+    pdf.multi_cell(87, 8.5, "", 0)
+    # Total Folios
+    pdf.set_xy(134.1, 124.1)
+    pdf.multi_cell(24.1, 5.7, str(Folios), 0, 'C')
+    # Caja
+    pdf.set_xy(134.1, 134.9)
+    pdf.multi_cell(24.1, 6.6, str(Caja), 0, 'C')
+    # Folios 2
+    pdf.set_xy(89, 142.9)
+    pdf.multi_cell(30.6, 6.8, str(Folios), 0, 'C')
+
+    # Procesar la fecha inicial
+    try:
+        fecha_inicial = time.strptime(FInicial, "%Y-%m-%d")
+        Iano = time.strftime("%Y", fecha_inicial)
+        Imes = time.strftime("%m", fecha_inicial)
+        Idia = time.strftime("%d", fecha_inicial)
+    except Exception:
+        Iano = Imes = Idia = ""
+    pdf.set_xy(55.2, 154.5)
+    pdf.multi_cell(14.4, 4.5, Iano, 0, 'C')
+    pdf.set_xy(69.7, 154.5)
+    pdf.multi_cell(14.4, 4.5, Imes, 0, 'C')
+    pdf.set_xy(84.2, 154.5)
+    pdf.multi_cell(14.4, 4.5, Idia, 0, 'C')
+
+    # Procesar la fecha final
+    try:
+        fecha_final = time.strptime(FFinal, "%Y-%m-%d")
+        Fano = time.strftime("%Y", fecha_final)
+        Fmes = time.strftime("%m", fecha_final)
+        Fdia = time.strftime("%d", fecha_final)
+    except Exception:
+        Fano = Fmes = Fdia = ""
+    pdf.set_xy(118, 154.5)
+    pdf.multi_cell(12.8, 4.5, Fano, 0, 'C')
+    pdf.set_xy(130.9, 154.5)
+    pdf.multi_cell(12.8, 4.5, Fmes, 0, 'C')
+    pdf.set_xy(143.7, 154.5)
+    pdf.multi_cell(12.8, 4.5, Fdia, 0, 'C')
+
+    # Generar el PDF en un stream de bytes (pdf.output ya devuelve un bytearray)
+    pdf_output = pdf.output(dest='S')
+    
+    # Enviar el PDF para visualizarlo en el navegador (Content-Disposition inline)
+    return send_file(
+        io.BytesIO(pdf_output),
+        mimetype='application/pdf',
+        as_attachment=False  # Esto permite que se muestre en línea
+    )
+
+
+@app.route('/pdf/rotulo-caja', methods=['POST'])
+def rotulo_caja():
+    # Validar y obtener el valor de 'consulta'
+    if 'consulta' not in request.form:
+        abort(400, description="Falta el parámetro 'consulta'")
+    try:
+        idpost = int(request.form['consulta'])
+    except ValueError:
+        abort(400, description="El parámetro 'consulta' debe ser un entero.")
+    
+    # Consultar la base de datos para obtener todas las filas donde Caja = idpost
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT * FROM Carpetas WHERE Caja = %s"
+        cursor.execute(query, (idpost,))
+        rows = cursor.fetchall()
+    except Exception as e:
+        app.logger.error("Error de base de datos: %s", e)
+        abort(500, description="Error en la base de datos.")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+    
+    if not rows:
+        abort(404, description="No se encontraron registros para la Caja solicitada.")
+    
+    # Inicializar variables para fechas, series, títulos, etc.
+    # Trabajamos con objetos de tipo date para las fechas
+    FInicial = date.today()
+    FFinal = None
+    series = []
+    titulos = []
+    subSerie = ""
+    caja = ""
+    numeroCarpeta = ""
+    
+    # Procesar cada fila
+    for row in rows:
+        caja = row.get('Caja')
+        numeroCarpeta = row.get('Car2')  # Número de carpeta
+        serie = row.get('Serie') or ""
+        subSerie = row.get('Subs') or ""
+        titulo = row.get('Titulo') or ""
+        
+        # Convertir fechas a objetos date (si son cadenas)
+        row_FInicial = row.get('FInicial')
+        row_FFinal = row.get('FFinal')
+        if row_FInicial:
+            if isinstance(row_FInicial, str):
+                try:
+                    row_FInicial = datetime.strptime(row_FInicial, "%Y-%m-%d").date()
+                except Exception:
+                    row_FInicial = None
+        if row_FFinal:
+            if isinstance(row_FFinal, str):
+                try:
+                    row_FFinal = datetime.strptime(row_FFinal, "%Y-%m-%d").date()
+                except Exception:
+                    row_FFinal = None
+        
+        if row_FInicial and row_FInicial < FInicial:
+            FInicial = row_FInicial
+        if row_FFinal:
+            if FFinal is None or row_FFinal > FFinal:
+                FFinal = row_FFinal
+        
+        series.append(serie)
+        titulos.append(titulo)
+    
+    # Contar la frecuencia de cada serie y obtener la más frecuente
+    if series:
+        mostFrequentSerie = Counter(series).most_common(1)[0][0]
+    else:
+        mostFrequentSerie = ""
+    
+    # Crear la clase PDF con encabezado
+    class PDF(FPDF):
+        def header(self):
+            try:
+                self.image("static/img/Caja AYC-GDO-FR-18 top.png", 0, 0, 175)
+            except Exception as e:
+                app.logger.error("Error al cargar la imagen del header: %s", e)
+    
+    # Crear el objeto PDF (formato: Vertical, unidades en mm, tamaño personalizado)
+    pdf = PDF('P', 'mm', (216, 330))
+    pdf.set_title(f"{caja} Caja")
+    pdf.add_page()
+    pdf.alias_nb_pages()
+    pdf.set_font('Arial', '', 9)
+    
+    # Imprimir Serie y Sub-serie
+    pdf.set_xy(47.3, 84)
+    pdf.multi_cell(87, 6.1, mostFrequentSerie, 0)
+    pdf.set_xy(47.3, 95)
+    pdf.multi_cell(87, 6.8, subSerie, 0)
+    
+    # Imprimir listado de títulos y numeración
+    posY = 117  # Posición Y inicial
+    lineHeight = 5
+    contador = 1
+    for titulo in titulos:
+        # Ajustar el texto en líneas de máximo 62 caracteres
+        titulo_lines = textwrap.wrap(titulo, 62)
+        for line in titulo_lines:
+            pdf.set_xy(45.5, posY)
+            # Corregido: usamos 'L' (alineación izquierda) en lugar de 1
+            pdf.multi_cell(103.4, lineHeight, line, 1, 'L')
+            pdf.set_xy(149, posY)
+            pdf.multi_cell(17.8, lineHeight, str(contador), 1, 'C')
+            contador += 1
+            posY += lineHeight
+    
+    # Etiqueta "CONTENIDO"
+    pdf.set_xy(10, 117)
+    pdf.multi_cell(30.8, (posY - 117), "CONTENIDO", 1, 'C')
+    
+    # Ajuste dinámico para la imagen inferior según la cantidad de registros
+    ajusteImagen = 0
+    if contador == 5:
+        ajusteImagen -= 20
+    elif contador == 6:
+        ajusteImagen -= 15
+    elif contador == 7:
+        ajusteImagen -= 10
+    elif contador == 8:
+        ajusteImagen -= 5
+    elif contador == 9:
+        ajusteImagen += 0
+    elif contador == 10:
+        ajusteImagen += 5
+    elif contador == 11:
+        ajusteImagen += 10
+    elif contador == 12:
+        ajusteImagen += 15
+    
+    try:
+        pdf.image("static/img/Caja AYC-GDO-FR-18 below.png", 0, ajusteImagen, 175)
+    except Exception as e:
+        app.logger.error("Error al cargar la imagen inferior: %s", e)
+    
+    # Procesar las fechas para imprimir
+    try:
+        Iano, Imes, Idia = FInicial.isoformat().split('-')
+    except Exception:
+        Iano = Imes = Idia = ""
+    try:
+        Fano, Fmes, Fdia = FFinal.isoformat().split('-') if FFinal else ("", "", "")
+    except Exception:
+        Fano = Fmes = Fdia = ""
+    
+    pdf.set_font('Arial', '', 9)
+    # Fecha Inicial
+    pdf.set_xy(62.2, posY)
+    pdf.multi_cell(14.4, 4.5, Iano, 0, 'C')
+    pdf.set_xy(74.7, posY)
+    pdf.multi_cell(14.4, 4.5, Imes, 0, 'C')
+    pdf.set_xy(88.2, posY)
+    pdf.multi_cell(14.4, 4.5, Idia, 0, 'C')
+    # Fecha Final
+    pdf.set_xy(125, posY)
+    pdf.multi_cell(12.8, 4.5, Fano, 0, 'C')
+    pdf.set_xy(138.9, posY)
+    pdf.multi_cell(12.8, 4.5, Fmes, 0, 'C')
+    pdf.set_xy(151.7, posY)
+    pdf.multi_cell(12.8, 4.5, Fdia, 0, 'C')
+    
+    # Imprimir número de caja y carpeta
+    posYFinal = posY + 8
+    pdf.set_font('Arial', '', 14)
+    pdf.set_xy(57.3, posYFinal)
+    pdf.multi_cell(24.1, 6.6, str(caja), 0, 'C')
+    posYFinal += 10
+    pdf.set_xy(42.3, posYFinal)
+    pdf.multi_cell(24.1, 10, str(numeroCarpeta), 0, 'C')
+    
+    # Generar el PDF en un stream de bytes (pdf.output ya devuelve un bytearray)
+    pdf_output = pdf.output(dest='S')
+    
+    # Enviar el PDF para visualizarlo en el navegador
+    return send_file(
+        io.BytesIO(pdf_output),
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=f"Caja {caja}.pdf"
+    )
 
 
 
