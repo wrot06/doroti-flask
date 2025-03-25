@@ -1,0 +1,49 @@
+body {
+    font-family: Arial, sans-serif;
+}
+table {
+    width: 80%;
+    border-collapse: collapse;
+    margin: 15px auto;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 5px;
+    text-align: center;
+}
+th:nth-child(1) { width: 5%; } /* Columna para mover */
+th:nth-child(2) { width: 80%; } /* Descripción */
+th:nth-child(3), th:nth-child(4) { width: 5%; } /* Inicio y Final */
+tr {
+    cursor: default; /* Cambiar el cursor por defecto en las filas */
+}
+.highlight {
+    background-color: #f0f0f0;
+}
+form {
+    text-align: center;
+    margin: 15px;
+}
+.form-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px; /* Espaciado entre elementos */
+}
+#ultimaPagina {
+    font-weight: bold;
+}
+.drag-icon {
+    cursor: move; /* Cambiar el cursor al mover solo en el ícono */
+    width: 20px; /* Ancho del ícono */
+    height: 20px; /* Alto del ícono */
+}
+.drag-column {
+    cursor: move; /* Cambiar el cursor al mover en la celda de mover */
+}
+
+
+.etiquetas {
+    margin-bottom: 0.3rem; /* Ajusta el margen inferior de las etiquetas */
+    font-size: 12px;
+}

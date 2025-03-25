@@ -1,0 +1,14 @@
+#grabarBoton {
+    background-color: red; /* Color inicial (no grabando) */
+    color: white;
+    border: none;
+    padding: 3px 5px;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.3s ease; /* Transición suave */
+}
+
+#grabarBoton.grabando {
+    background-color: green; /* Color cuando está grabando */
+}

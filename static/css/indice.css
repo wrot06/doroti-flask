@@ -1,0 +1,43 @@
+/*estilo del boton de mover los capitulos de orden*/
+
+
+.drag-handle {
+  cursor: move;
+  background-color: transparent;
+}
+
+.drag-handle i {
+  font-size: 1.2rem;
+  color: #555;
+  transition: transform 0.2s;
+}
+
+.drag-handle:hover i {
+  transform: scale(1.2);
+}
+
+/* Estilo del select  */
+.final-page-select {
+  width: 80px;       /* Ajusta el ancho según lo que necesites */
+  float: right;      /* Alinea el elemento a la derecha */
+  margin-left: auto; /* Opcional: ayuda a mantener la separación si está en un contenedor */
+}
+
+
+
+.custom-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem; /* Espacio horizontal entre los elementos */
+  flex-wrap: wrap; /* Permite que los elementos se acomoden si hay poco espacio */
+  row-gap: 0.5rem; /* Espaciado vertical entre elementos */
+}
+
+.custom-container h6 {
+  margin: 0;
+}
+
+.custom-container form,
+.custom-container a {
+  margin: 0;
+}

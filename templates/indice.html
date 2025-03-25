@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='hueso.png') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indice Documental</title>
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/indice.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estiloindice.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/botongrabar.css') }}">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" crossorigin="anonymous">
+
+    <!-- JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+</head>
+<body>
+
+    <div id="config"
+        data-actualizar-titulo="{{ url_for('actualizar_titulo') }}"
+        data-actualizar-orden="{{ url_for('actualizar_orden') }}"
+        data-actualizar-final="{{ url_for('actualizar_final') }}"
+        data-agregar-capitulo="{{ url_for('agregar_capitulo') }}"
+        data-eliminar-capitulo="{{ url_for('eliminar_capitulo') }}"
+        data-caja="{{ caja|tojson }}"
+        data-carpeta="{{ carpeta|tojson }}"
+        data-pagina-siguiente="{{ paginaSiguiente|default(1)|tojson }}"
+        style="display: none;">
+    </div>
+
+    <div class="container mt-4">
+        <!-- Encabezado con información de Caja y Carpeta y botones de acción -->
+        <div class="custom-container">
+            <h6>Caja {{ caja }} | Carpeta {{ carpeta }}</h6>
+            <form action="{{ url_for('tcarpeta') }}" method="POST">
+                <input type="hidden" name="caja" value="{{ caja }}">
+                <input type="hidden" name="carpeta" value="{{ carpeta }}">
+                <input type="hidden" name="folios" value="{{ ultima_pagina + 1 }}">
+                <button type="submit" class="btn btn-primary btn-sm">Terminar Carpeta</button>
+            </form>
+            <a href="{{ url_for('index') }}" class="btn btn-primary btn-sm">Inicio</a>
+        </div>
+        
+
+        <!-- Tabla de capítulos -->
+        <table class="table table-bordered table-sm" id="capitulosTable">
+            <thead class="thead-light">
+                <tr>
+                    <th></th>
+                    <th>Descripción</th>
+                    <th>Inicio</th>
+                    <th>Final</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if not capitulos %}
+                    <tr>
+                        <td colspan="5" class="text-center">No hay capítulos registrados. Página inicial: 1</td>
+                    </tr>
+                {% else %}
+                    {% for capitulo in capitulos %}
+                        {% set numPaginas = (capitulo.NoFolioFin | int) - (capitulo.NoFolioInicio | int) + 1 %}
+                        <tr data-id="{{ capitulo.id2 }}" data-num-paginas="{{ numPaginas }}">
+                            <td>
+                                <button type="button" class="btn btn-light btn-sm p-0 border-0 drag-handle" style="background: yellow; border: 1px solid red;">
+                                    <i class="fas fa-arrows-alt-v" style="color: black; font-size: 1.5rem;"></i>
+                                </button>                              
+                            </td>
+                            <td contenteditable="true" class="editable">{{ capitulo.DescripcionUnidadDocumental }}</td>
+                            <td>{{ capitulo.NoFolioInicio }}</td>
+                            <td>{{ capitulo.NoFolioFin }}</td>
+                            <td><button class="btn btn-success eliminar btn-sm" style="padding: 0.2rem 0.4rem; font-size: 0.7rem;">Eliminar</button></td>
+                        </tr>
+                    {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Selector de página final corregido -->
+        <div class="d-flex justify-content-end">
+            <select id="finalPageSelect" class="form-control" style="width: 80px;">
+                {% for i in range(1, ultima_pagina + 10) %}
+                    <option value="{{ i }}" {% if i == ultima_pagina %}selected{% endif %}>{{ i }}</option>
+                {% endfor %}
+            </select>
+          </div>
+          
+        
+
+        <!-- Sección de etiquetas (Serie) -->
+        <div class="etiquetas mb-1" style="font-size: 0.75rem;">
+            <div class="etiquetas-container d-flex flex-wrap align-items-center" style="gap: 5px;">
+                {% for etiqueta in etiquetas %}
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="radio" name="etiqueta" value="{{ etiqueta }}" id="etiqueta-{{ etiqueta }}">
+                        <label class="form-check-label" for="etiqueta-{{ etiqueta }}">{{ etiqueta|capitalize }}</label>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Formulario para agregar un capítulo -->
+        <form id="capituloForm">
+            <h2 class="h6 mb-2">Asunto</h2>
+            <div class="form-group">
+                <textarea id="titulo" class="form-control" placeholder="Describir" required maxlength="394"></textarea>
+                <p id="charCount">0 / 394</p>
+            </div>
+            <div class="form-row align-items-center mb-2">
+                <button type="button" id="grabarBoton" class="btn btn-warning btn-sm">Grabar (F9)</button>
+                <p id="ultimaPagina" class="ml-1 mb-0">Última página: {{ ultima_pagina + 1 }}</p>
+                <div class="col-auto">
+                    <input type="number" id="paginaFinal" class="form-control" placeholder="Página de Finalización" value="{{ ultima_pagina + 1 }}" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm ml-2">Agregar Documento</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+
+</body>
+</html>
