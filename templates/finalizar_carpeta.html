@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finalización de Carpeta</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+  <div class="container mt-5 d-flex justify-content-center">
+    <div class="card shadow-sm" style="max-width: 500px; width: 100%;">
+      <div class="card-body text-center">
+        <h2 class="card-title mb-4">Gestión de Carpetas</h2>
+        <!-- Se muestran los flash messages en la plantilla si existen -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <a href="{{ url_for('index') }}" class="btn btn-primary btn-lg">Regresar al Inicio</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask import Flask, request, abort, send_file, session, redirect, url_for, flash
-import os, secrets, io, textwrap
+import os, secrets, io, textwrap, re
 import mysql.connector
 import time, urllib.parse, json
 from collections import Counter
@@ -369,23 +369,57 @@ def indice():
                            etiquetas=etiquetas)
 
 
-@app.route('/tcarpeta', methods=['POST'])
+@app.route('/tcarpeta', methods=['GET', 'POST'])
 def tcarpeta():
-    # Extraer los datos del formulario
-    caja = request.form.get('caja')
-    carpeta = request.form.get('carpeta')
-    folios = request.form.get('folios')
+    # Captura de datos básicos (pueden venir por GET o POST)
+    caja = request.form.get('caja', '').strip()
+    carpeta = request.form.get('carpeta', '').strip()
+    try:
+        folios = max(1, int(request.form.get('folios', 1)))
+    except ValueError:
+        folios = 1
+
+    # Verificación básica
+    if not caja or not carpeta:
+        flash("Error: Caja o carpeta no definidas.", "danger")
+        return redirect(url_for('index'))
     
-    # Validación básica (opcional)
-    if not caja or not carpeta or not folios:
-        flash("Faltan datos para terminar la carpeta.", "warning")
-        return redirect(url_for('indice'))
+    # Consulta de Series para el select (como ejemplo)
+    series = []
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, nombre FROM serie ORDER BY nombre ASC")
+        series = cursor.fetchall()
+    except Exception as e:
+        flash(f"Error al obtener series: {e}", "danger")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    # Consulta para obtener la última página de IndiceTemp
+    ultima_pagina = 0
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+        query = "SELECT MAX(NoFolioFin) AS ultima_pagina FROM IndiceTemp WHERE caja = %s AND carpeta = %s"
+        cursor.execute(query, (caja, carpeta))
+        result = cursor.fetchone()
+        if result and result['ultima_pagina'] is not None:
+            ultima_pagina = result['ultima_pagina']
+    except Exception as e:
+        flash(f"Error al obtener última página: {e}", "danger")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
     
-    # Aquí podrías agregar la lógica para finalizar la carpeta,
-    # por ejemplo, actualizar la base de datos, cerrar la sesión de edición, etc.
-    
-    # Luego, renderiza el template tcarpeta.html pasando las variables necesarias
-    return render_template('tcarpeta.html', caja=caja, carpeta=carpeta, folios=folios)
+    # Renderizar la plantilla, pasando las variables necesarias
+    return render_template('tcarpeta.html', caja=caja, carpeta=carpeta, folios=folios, series=series, ultima_pagina=ultima_pagina)
+
 
 
 @app.route('/agregar_capitulo', methods=['POST'])
@@ -990,6 +1024,133 @@ def rotulo_caja():
     )
 
 
+
+
+
+@app.route('/finalizar_carpeta', methods=['POST'])
+def finalizar_carpeta():
+    # Capturar y sanitizar datos del formulario
+    caja = request.form.get('caja', '').strip()
+    carpeta = request.form.get('carpeta', '').strip()
+    car2 = carpeta  # Se utiliza la misma variable
+    try:
+        folios = max(1, int(request.form.get('folios', 1)))
+    except ValueError:
+        folios = 1
+
+    Serie = request.form.get('serie', '').strip()
+    subs = request.form.get('subserie', '').strip()
+    tituloCarpeta = request.form.get('tituloCarpeta', '').strip()
+    estado = 'C'
+    fechaInicial = request.form.get('fechaInicial', '').strip()
+    fechaFinal = request.form.get('fechaFinal', '').strip()
+
+    # Limpiar el título: quitar espacios extremos y reemplazar múltiples espacios por uno solo
+    tituloCarpeta = re.sub(r'\s+', ' ', tituloCarpeta)
+
+    # Validar que los campos requeridos estén completos
+    campos_requeridos = ['caja', 'carpeta', 'folios', 'serie', 'tituloCarpeta', 'fechaInicial', 'fechaFinal']
+    for campo in campos_requeridos:
+        if not request.form.get(campo):
+            flash("Error: Todos los campos deben ser completados.", "danger")
+            return redirect(url_for('tcarpeta'))
+
+    # Validar formato de fechas
+    try:
+        datetime.strptime(fechaInicial, '%Y-%m-%d')
+        datetime.strptime(fechaFinal, '%Y-%m-%d')
+    except ValueError:
+        flash("Error: Las fechas no son válidas. Formato esperado: YYYY-MM-DD.", "danger")
+        return redirect(url_for('tcarpeta'))
+
+    # Conectar a la base de datos y ejecutar las operaciones
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        # Actualizar la tabla Carpetas
+        update_query = """
+            UPDATE Carpetas 
+            SET Car2 = %s, Serie = %s, Subs = %s, Titulo = %s, FInicial = %s, FFinal = %s, Folios = %s, Estado = %s 
+            WHERE Caja = %s AND Car2 = %s
+        """
+        cursor.execute(update_query, (car2, Serie, subs, tituloCarpeta, fechaInicial, fechaFinal, folios, estado, caja, car2))
+        conn.commit()
+        if cursor.rowcount:
+            flash("Carpeta actualizada con éxito.", "success")
+        else:
+            flash("Error al actualizar la carpeta.", "danger")
+            return redirect(url_for('tcarpeta'))
+
+        # Transferir datos de IndiceTemp a IndiceDocumental
+        transfer_query = """
+            INSERT INTO IndiceDocumental 
+            (Caja, Carpeta, DescripcionUnidadDocumental, NoFolioInicio, NoFolioFin, paginas, Soporte, FechaIngreso) 
+            SELECT Caja, Carpeta, DescripcionUnidadDocumental, NoFolioInicio, NoFolioFin, paginas, 'Físico', FechaIngreso 
+            FROM IndiceTemp 
+            WHERE Caja = %s AND Carpeta = %s
+        """
+        cursor.execute(transfer_query, (caja, carpeta))
+        conn.commit()
+        flash("Datos transferidos a IndiceDocumental con éxito.", "success")
+
+        # Eliminar datos de IndiceTemp
+        delete_query = "DELETE FROM IndiceTemp WHERE Caja = %s AND Carpeta = %s"
+        cursor.execute(delete_query, (caja, carpeta))
+        conn.commit()
+        flash("Datos eliminados de IndiceTemp con éxito.", "success")
+
+    except Exception as e:
+        flash(f"Error inesperado. Por favor, inténtalo de nuevo. Detalle: {e}", "danger")
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    return render_template('finalizar_carpeta.html', caja=caja)
+
+
+
+# Ejemplo de ruta para mostrar la página final
+@app.route('/finalizar_carpeta_view')
+def finalizar_carpeta_view():
+    # Esta ruta podría ser redirigida luego de finalizar la carpeta
+    return render_template('finalizar_carpeta.html', caja="")
+
+
+@app.route('/get_subseries', methods=['POST'])
+def get_subseries():
+    # Obtener el parámetro serie_id y limpiarlo
+    serie_id = request.form.get('serie_id', '').strip()
+    if not serie_id:
+        return jsonify({'error': 'No se proporcionó serie_id'}), 400
+
+    # Registrar el valor recibido para depuración
+    app.logger.info(f"serie_id recibido: {serie_id}")
+    
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+    except mysql.connector.Error as err:
+        app.logger.error(f"Error de conexión: {err}")
+        return jsonify({'error': f'Error de conexión: {err}'}), 500
+
+    try:
+        # Asegúrate de que el nombre de la tabla y las columnas sean exactos.
+        query = "SELECT id, Subs AS nombre FROM Subs WHERE serie_nombre = %s"
+        cursor.execute(query, (serie_id,))
+        subseries = cursor.fetchall()
+        app.logger.info(f"Subseries encontradas: {subseries}")
+        return jsonify(subseries)
+    except Exception as e:
+        app.logger.error("Error al ejecutar la consulta: %s", e)
+        return jsonify({'error': f'Error al cargar subseries: {e}'}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 if __name__ == '__main__':

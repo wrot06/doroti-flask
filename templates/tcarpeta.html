@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carpeta</title>
+  <!-- Tus estilos personalizados y Bootstrap -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/estiloindice.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/botongrabar.css') }}">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+  <div class="container mt-4">
+    <!-- Encabezado -->
+    <div class="d-flex align-items-center mb-3">
+      <h5 class="mb-0">Caja {{ caja }} | Carpeta {{ carpeta }}</h5>
+      <form action="{{ url_for('indice') }}" method="post" class="ml-3">
+        <input type="hidden" name="caja" value="{{ caja }}">
+        <input type="hidden" name="carpeta" value="{{ carpeta }}">
+        <button type="submit" class="btn btn-primary btn-sm">Regresar</button>
+      </form>
+    </div>
+
+    <!-- Formulario de Detalles Carpeta -->
+    <div class="card">
+      <div class="card-header">Detalles Carpeta</div>
+      <div class="card-body">
+        <form action="{{ url_for('finalizar_carpeta') }}" method="post">
+          <!-- Datos ocultos -->
+          <input type="hidden" name="caja" value="{{ caja }}">
+          <input type="hidden" name="carpeta" value="{{ carpeta }}">
+          
+          <!-- Serie -->
+          <div class="form-group">
+            <label for="serie">Serie:</label>
+            <select id="serie" name="serie" class="form-control form-control-sm" required>
+              <option value="" disabled selected>Seleccione una Serie</option>
+              {% for s in series %}
+                <option value="{{ s.nombre|upper }}">{{ s.nombre|upper }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+
+          <!-- Subserie (se cargará vía AJAX) -->
+          <div class="form-group">
+            <label for="subserie">Subserie:</label>
+            <select id="subserie" name="subserie" class="form-control form-control-sm">
+              <option value="" selected>Seleccione una Subserie</option>
+            </select>
+          </div>
+
+          <!-- Título de Carpeta -->
+          <div class="form-group">
+            <label for="tituloCarpeta">Título de Carpeta:</label>
+            <textarea id="tituloCarpeta" name="tituloCarpeta" class="form-control form-control-sm" placeholder="Ingrese el título de la carpeta" rows="3" required style="font-size: 1.2rem; height: 150px;" maxlength="56" onkeypress="return event.charCode < 32 || this.value.length < 56"></textarea>
+            <div class="text-right mt-3">
+              <button type="button" id="grabarBoton" class="btn btn-warning btn-sm">Grabar Voz (F9)</button>
+            </div>
+          </div>
+
+          <!-- Fechas -->
+          <div class="form-row">
+            <div class="form-group col-md-3">
+              <label for="fechaInicial">Fecha Inicial:</label>
+              <input type="date" id="fechaInicial" name="fechaInicial" class="form-control form-control-sm" required>
+            </div>
+            <div class="form-group col-md-3">
+              <label for="fechaFinal">Fecha Final:</label>
+              <input type="date" id="fechaFinal" name="fechaFinal" class="form-control form-control-sm" required>
+            </div>
+          </div>
+
+<!-- Folios (consulta de la última página) -->
+{% set ultimaPagina = ultima_pagina | default(0) %}
+<input type="hidden" name="folios" value="{{ ultimaPagina }}">
+<div class="form-group">
+  <label for="totalFolios">Folios: {{ ultimaPagina }}</label>
+</div>
+
+
+          <button type="submit" class="btn btn-success btn-sm">Finalizar Carpeta</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts: jQuery, Bootstrap y tu script personalizado -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+<!-- Definir la variable global -->
+<script>
+    var getSubseriesURL = "{{ url_for('get_subseries') }}";
+  </script>
+  <!-- Luego cargar el script -->
+  <script src="{{ url_for('static', filename='js/tcarpeta.js') }}"></script>
+  
+</body>
+</html>
