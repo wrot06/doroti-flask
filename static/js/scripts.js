@@ -89,21 +89,23 @@ $(document).ready(() => {
       return;
     }
 
-    // Construir el título final con la etiqueta seleccionada
-    const tituloCompleto = `${etiquetaSeleccionada}: ${titulo}`;
+// Construir solo el título sin la etiqueta
+const tituloCompleto = titulo;  // Ya no incluye la etiqueta
 
-    // Enviar la solicitud AJAX para agregar el nuevo capítulo
-    $.ajax({
-      url: agregarCapituloURL,
-      type: "POST",
-      data: {
-        caja: caja,
-        carpeta: carpeta,
-        titulo: tituloCompleto,
-        paginaFinal: paginaFinal
-      },
-      dataType: "json"
-    })
+// Enviar la solicitud AJAX para agregar el nuevo capítulo
+$.ajax({
+  url: agregarCapituloURL,
+  type: "POST",
+  data: {
+    caja: caja,
+    carpeta: carpeta,
+    titulo: tituloCompleto,  // solo el título
+    paginaFinal: paginaFinal,
+    serie: etiquetaSeleccionada  // se manda aparte
+  },
+  dataType: "json"
+})
+
     .done((response) => {
       if (response.status === "success") {
         const nuevoCapitulo = response.capitulo;

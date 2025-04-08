@@ -426,7 +426,7 @@ def tcarpeta():
 def agregar_capitulo():
     """
     Procesa la solicitud POST para agregar un nuevo capítulo:
-      - Valida y sanitiza los datos: caja, carpeta, título y página final.
+      - Valida y sanitiza los datos: caja, carpeta, título, página final y serie.
       - Obtiene la última página registrada en IndiceTemp para calcular la página de inicio.
       - Calcula el número de páginas y determina el nuevo id (id2).
       - Inserta el nuevo capítulo en la tabla IndiceTemp.
@@ -438,11 +438,14 @@ def agregar_capitulo():
         carpeta = int(request.form.get('carpeta', '').strip())
         titulo = request.form.get('titulo', '').strip()
         paginaFinal = int(request.form.get('paginaFinal', '').strip())
+        serie = request.form.get("serie", "").strip()
     except (ValueError, AttributeError):
         return jsonify(status="error", message="Todos los campos son obligatorios y deben ser válidos."), 400
 
     if not titulo:
         return jsonify(status="error", message="El título no puede estar vacío."), 400
+    if not serie:
+        return jsonify(status="error", message="La etiqueta (serie) es obligatoria."), 400
 
     conn = None
     cursor = None
@@ -481,12 +484,14 @@ def agregar_capitulo():
         last_id = result_last_id["last_id"] if result_last_id and result_last_id["last_id"] is not None else 0
         id2 = last_id + 1
 
-        # 3. Insertar el nuevo capítulo en la tabla IndiceTemp
+        # 3. Insertar el nuevo capítulo en la tabla IndiceTemp, incluyendo la serie
         sql_insert = """
-            INSERT INTO IndiceTemp (id2, Caja, Carpeta, DescripcionUnidadDocumental, NoFolioInicio, NoFolioFin, paginas)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO IndiceTemp (
+                id2, Caja, Carpeta, DescripcionUnidadDocumental,
+                NoFolioInicio, NoFolioFin, paginas, Serie
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(sql_insert, (id2, caja, carpeta, titulo, paginaInicio, paginaFinal, paginas))
+        cursor.execute(sql_insert, (id2, caja, carpeta, titulo, paginaInicio, paginaFinal, paginas, serie))
         conn.commit()
 
         # Responder con JSON con los datos del nuevo capítulo
@@ -497,7 +502,8 @@ def agregar_capitulo():
                 "titulo": titulo,
                 "pagina_inicio": paginaInicio,
                 "pagina_final": paginaFinal,
-                "num_paginas": paginas
+                "num_paginas": paginas,
+                "serie": serie
             }
         )
     except Exception as e:
@@ -507,6 +513,7 @@ def agregar_capitulo():
             cursor.close()
         if conn:
             conn.close()
+
 
 
 @app.route('/actualizar_orden', methods=['GET', 'POST'])
